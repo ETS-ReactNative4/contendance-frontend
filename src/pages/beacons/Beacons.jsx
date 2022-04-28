@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import {
   Col,
@@ -20,25 +20,41 @@ import moreIcon from "../../assets/tables/moreIcon.svg";
 import s from "../components/Tables.module.scss";
 import mock from "../components/mock.jsx";
 import { Link } from "react-router-dom";
+import { deleteBeacon, getAllBeacons } from "../../api/BeaconAPI.js";
+import { toast } from "react-toastify";
+import {
+  notificationOptions,
+  swalWithBootstrapButtons,
+} from "../../utils/index.js";
+import Notification from "../../components/Notification/Notification.js";
+import Swal from "sweetalert2";
 
 const Beacons = function () {
   const [beaconTable] = useState(mock.beacons);
-  const [beaconData, setBeaconData] = useState(mock.beacons);
+  const [beaconDatas, setBeaconDatas] = useState([]);
+  const [uuid, setUuid] = useState("");
   const [beaconTableCurrentPage, setSecondTableCurrentPage] = useState(0);
   const [tableDropdownOpen, setTableMenuOpen] = useState(false);
-
   const pageSize = 10;
   const beaconTablePagesCount = Math.ceil(beaconTable.length / pageSize);
+  const columns = ["UUID", "Ruangan", "Status"];
+  const pageName = "Beacon";
+
+  const getBeaconsData = async () => {
+    const res = await getAllBeacons();
+    setBeaconDatas(res);
+  };
 
   const setBeaconTablePage = (e, index) => {
     e.preventDefault();
     setSecondTableCurrentPage(index);
   };
 
-  const beaconMenuOpen = (id) => {
-    setBeaconData(
-      beaconData.map((item) => {
-        if (item.id === id) {
+  const beaconMenuOpen = (data) => {
+    setUuid(data.uuid);
+    setBeaconDatas(
+      beaconDatas?.map((item) => {
+        if (item.id === data.id) {
           item.dropdownOpen = !item.dropdownOpen;
         }
         return item;
@@ -50,7 +66,67 @@ const Beacons = function () {
     setTableMenuOpen(!tableDropdownOpen);
   };
 
-  const columns = ["UUID", "Ruangan", "Status"];
+  const handleDelete = (id) => {
+    swalWithBootstrapButtons
+      .fire({
+        title: `Anda yakin menghapus ${pageName}?`,
+        html: `Anda akan menghapus Beacon <b>${uuid}</b>`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Ya, hapus",
+        cancelButtonText: "Tidak, batal",
+        reverseButtons: true,
+      })
+      .then(async (result) => {
+        if (result.isConfirmed) {
+          const res = await deleteBeacon(id);
+          if (res.status === 200) {
+            Swal.close();
+            getBeaconsData();
+            toast(
+              <Notification
+                type="success"
+                message={`<span class='body-2'>${pageName}</span> berhasil dihapus!`}
+                withIcon
+              />,
+              notificationOptions
+            );
+          }
+        } else if (Swal.close()) {
+          swalWithBootstrapButtons.fire(
+            "Cancelled",
+            "Your imaginary file is safe :)",
+            "error"
+          );
+        }
+      });
+
+    // const res = await deleteBeacon(id);
+    // if (res.status === 200) {
+    //   getBeaconsData();
+    //   toast(
+    //     <Notification
+    //       type="success"
+    //       message={`<span class='body-2'>${pageName}</span> berhasil dihapus!`}
+    //       withIcon
+    //     />,
+    //     notificationOptions
+    //   );
+    // } else {
+    //   toast(
+    //     <Notification
+    //       type="error"
+    //       message={`<span class='body-2'>${pageName}</span> gagal dihapus!`}
+    //       withIcon
+    //     />,
+    //     notificationOptions
+    //   );
+    // }
+  };
+
+  useEffect(() => {
+    getBeaconsData();
+  }, []);
 
   return (
     <div>
@@ -67,7 +143,7 @@ const Beacons = function () {
                         Tambah Beacon
                       </Button>
                     </Link>
-                    {/* <Dropdown
+                    <Dropdown
                       className="d-none d-sm-block"
                       nav
                       isOpen={tableDropdownOpen}
@@ -91,7 +167,7 @@ const Beacons = function () {
                           <div>Delete</div>
                         </DropdownItem>
                       </DropdownMenu>
-                    </Dropdown> */}
+                    </Dropdown>
                   </div>
                 </div>
                 <div className="widget-table-overflow">
@@ -117,63 +193,79 @@ const Beacons = function () {
                       </tr>
                     </thead>
                     <tbody>
-                      {beaconData
-                        .slice(
-                          beaconTableCurrentPage * pageSize,
-                          (beaconTableCurrentPage + 1) * pageSize
-                        )
-                        .map((item) => (
-                          <tr key={uuidv4()}>
-                            <td>
-                              <div className="checkbox checkbox-primary">
-                                <input
-                                  id={item.id}
-                                  className="styled"
-                                  type="checkbox"
-                                />
-                                <label htmlFor={item.checkboxId} />
-                              </div>
-                            </td>
-                            <td>{item.uuid}</td>
-                            <td>{item.ruangan}</td>
-                            <td>
-                              <Badge color={item.color}>{item.status}</Badge>
-                            </td>
-                            <td>
-                              <Dropdown
-                                className="d-none d-sm-block"
-                                nav
-                                isOpen={item.dropdownOpen}
-                                toggle={() => beaconMenuOpen(item.id)}
-                              >
-                                <DropdownToggle nav>
-                                  <img
-                                    className="d-none d-sm-block"
-                                    src={moreIcon}
-                                    alt="More ..."
+                      {beaconDatas.length === 0 ? (
+                        <tr>
+                          <td colSpan="4">
+                            <h5 className=" text-center my-3">
+                              Belum ada data
+                            </h5>
+                          </td>
+                        </tr>
+                      ) : (
+                        beaconDatas
+                          ?.slice(
+                            beaconTableCurrentPage * pageSize,
+                            (beaconTableCurrentPage + 1) * pageSize
+                          )
+                          ?.map((item) => (
+                            <tr key={uuidv4()}>
+                              <td>
+                                <div className="checkbox checkbox-primary">
+                                  <input
+                                    id={item?.id}
+                                    className="styled"
+                                    type="checkbox"
                                   />
-                                </DropdownToggle>
-                                <DropdownMenu>
-                                  <DropdownItem>
-                                    <Link to={`beacons/edit-beacon/${item.id}`}>
-                                      <div>Edit</div>
-                                    </Link>
-                                  </DropdownItem>
-                                  <DropdownItem>
-                                    <Link
-                                      to={`beacons/delete-beacon/${item.id}`}
-                                      className="secondary-red"
-                                    >
-                                      <div className="secondary-red">
+                                  <label htmlFor={item?.id} />
+                                </div>
+                              </td>
+                              <td>{item?.uuid}</td>
+                              <td>
+                                {item?.ruangan === undefined
+                                  ? "-"
+                                  : item?.ruangan}
+                              </td>
+                              <td>
+                                <Badge color={item?.color}>
+                                  {item?.status}
+                                </Badge>
+                              </td>
+                              <td>
+                                <Dropdown
+                                  className="d-none d-sm-block"
+                                  nav
+                                  isOpen={item?.dropdownOpen}
+                                  toggle={() => beaconMenuOpen(item)}
+                                >
+                                  <DropdownToggle nav>
+                                    <img
+                                      className="d-none d-sm-block"
+                                      src={moreIcon}
+                                      alt="More ..."
+                                    />
+                                  </DropdownToggle>
+                                  <DropdownMenu>
+                                    <DropdownItem>
+                                      <Link
+                                        to={`beacons/edit-beacon/${item?.id}`}
+                                      >
+                                        <div>Edit</div>
+                                      </Link>
+                                    </DropdownItem>
+                                    <DropdownItem>
+                                      <div
+                                        className="secondary-red"
+                                        onClick={() => handleDelete(item?.id)}
+                                      >
                                         Delete
                                       </div>
-                                    </Link>
-                                  </DropdownItem>
-                                </DropdownMenu>
-                              </Dropdown>
-                            </td>
-                          </tr>
-                        ))}
+                                    </DropdownItem>
+                                  </DropdownMenu>
+                                </Dropdown>
+                              </td>
+                            </tr>
+                          ))
+                      )}
                     </tbody>
                   </Table>
                   <Pagination className="pagination-with-border">
